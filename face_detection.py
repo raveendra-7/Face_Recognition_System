@@ -3,30 +3,28 @@ import numpy as np
 from pymongo import MongoClient
 from sklearn.neighbors import KNeighborsClassifier
 
-client = MongoClient("mongodb://localhost:27017/")
+# MongoDB Atlas Connection
+uri = "mongodb+srv://raveendra_db_user:<db_password>@cluster0.uvg6syq.mongodb.net/?appName=Cluster0"
+client = MongoClient(uri)
 db = client["FaceID_DB"]
 collection = db["faces"]
 
-def train_model_from_db():
+def train_model_from_cloud():
     data, labels = [], []
     names = []
     
-    # Get all unique names in the DB
     unique_names = collection.distinct("name")
     if not unique_names:
-        print("Database is empty!")
+        print("Database is empty! Run face_capture.py first.")
         return None, None
 
-    print(f"Loading data from MongoDB for: {unique_names}")
+    print(f"Syncing from Cloud for: {unique_names}")
     
     for label_id, name in enumerate(unique_names):
         names.append(name)
-        # Fetch all images for this specific person
         for record in collection.find({"name": name}):
-            # Convert binary back to image
             nparr = np.frombuffer(record['image'], np.uint8)
             img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
-            
             data.append(img.flatten())
             labels.append(label_id)
     
@@ -35,14 +33,18 @@ def train_model_from_db():
     return model, names
 
 def recognize_faces():
-    model, names = train_model_from_db()
+    model, names = train_model_from_cloud()
     if model is None: return
 
     face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
     cap = cv2.VideoCapture(0)
     
+    print("Camera active. Press 'q' to quit.")
+    
     while True:
         ret, frame = cap.read()
+        if not ret: break
+        
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = face_cascade.detectMultiScale(gray, 1.1, 5)
         
@@ -56,7 +58,7 @@ def recognize_faces():
             cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
             cv2.putText(frame, name, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
         
-        cv2.imshow('Face Recognition (DB Powered)', frame)
+        cv2.imshow('Cloud-Synced Recognition', frame)
         if cv2.waitKey(1) & 0xFF == ord('q'): break
     
     cap.release()
