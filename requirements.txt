@@ -1,0 +1,6 @@
+opencv-python
+pymongo
+dnspython
+scikit-learn
+numpy
+python-dotenv
